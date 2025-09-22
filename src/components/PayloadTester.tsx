@@ -8,7 +8,24 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Code, Send, History, Copy, Zap } from 'lucide-react';
+import { Code, Send, History, Copy, Zap, AlertTriangle } from 'lucide-react';
+
+interface PayloadTesterProps {
+  vulnerabilityData?: {
+    cve: string;
+    title: string;
+    location: {
+      url: string;
+      path: string;
+      parameter?: string;
+    };
+    exploitPayloads: Array<{
+      type: string;
+      payload: string;
+      description: string;
+    }>;
+  };
+}
 
 interface PayloadResult {
   id: string;
@@ -19,15 +36,28 @@ interface PayloadResult {
   status: 'success' | 'failed' | 'blocked';
   response: string;
   responseTime: number;
+  cve?: string;
 }
 
-export const PayloadTester: React.FC = () => {
+export const PayloadTester: React.FC<PayloadTesterProps> = ({ vulnerabilityData }) => {
   const { toast } = useToast();
-  const [target, setTarget] = useState('');
+  const [target, setTarget] = useState(vulnerabilityData?.location.url || '');
   const [payloadType, setPayloadType] = useState('');
   const [customPayload, setCustomPayload] = useState('');
   const [isTesting, setIsTesting] = useState(false);
   const [results, setResults] = useState<PayloadResult[]>([]);
+
+  // Set initial values when vulnerability data is provided
+  React.useEffect(() => {
+    if (vulnerabilityData) {
+      setTarget(vulnerabilityData.location.url);
+      if (vulnerabilityData.exploitPayloads.length > 0) {
+        const firstPayload = vulnerabilityData.exploitPayloads[0];
+        setPayloadType(firstPayload.type);
+        setCustomPayload(firstPayload.payload);
+      }
+    }
+  }, [vulnerabilityData]);
 
   const payloadTypes = [
     { value: 'sql-injection', label: 'SQL Injection', example: "' OR '1'='1" },
@@ -79,6 +109,7 @@ export const PayloadTester: React.FC = () => {
       status: Math.random() > 0.7 ? 'success' : Math.random() > 0.5 ? 'blocked' : 'failed',
       response: 'HTTP/1.1 200 OK\nContent-Type: text/html\n\n<html>Response content...</html>',
       responseTime: Math.floor(Math.random() * 1000) + 100,
+      cve: vulnerabilityData?.cve,
     };
 
     setResults(prev => [result, ...prev]);
@@ -102,6 +133,67 @@ export const PayloadTester: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Vulnerability Context (if loaded from vulnerability scanner) */}
+      {vulnerabilityData && (
+        <Card className="bg-gradient-accent border-border">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertTriangle className="h-4 w-4 text-warning" />
+              <span className="font-medium text-foreground">Testing Vulnerability: {vulnerabilityData.cve}</span>
+            </div>
+            <p className="text-sm text-muted-foreground mb-3">{vulnerabilityData.title}</p>
+            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+              <span>Target: {vulnerabilityData.location.url}</span>
+              <span>Path: {vulnerabilityData.location.path}</span>
+              {vulnerabilityData.location.parameter && (
+                <span>Parameter: {vulnerabilityData.location.parameter}</span>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Vulnerability-Specific Payloads */}
+      {vulnerabilityData && vulnerabilityData.exploitPayloads.length > 0 && (
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-warning" />
+              Vulnerability-Specific Payloads
+            </CardTitle>
+            <CardDescription>
+              Pre-configured payloads for {vulnerabilityData.cve}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 gap-3">
+              {vulnerabilityData.exploitPayloads.map((payload, idx) => (
+                <Card key={idx} className="bg-secondary border-border cursor-pointer hover:shadow-glow transition-all"
+                      onClick={() => {
+                        setPayloadType(payload.type);
+                        setCustomPayload(payload.payload);
+                      }}>
+                  <CardContent className="p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <Badge variant="outline" className="border-warning text-warning text-xs">
+                        {payload.type}
+                      </Badge>
+                      <Badge variant="outline" className="border-accent text-accent text-xs">
+                        {vulnerabilityData.cve}
+                      </Badge>
+                    </div>
+                    <code className="text-xs text-terminal-green font-mono break-all block bg-terminal/20 p-2 rounded mb-2">
+                      {payload.payload}
+                    </code>
+                    <p className="text-xs text-muted-foreground">{payload.description}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Payload Configuration */}
       <Card className="bg-card border-border">
         <CardHeader>
@@ -231,6 +323,11 @@ export const PayloadTester: React.FC = () => {
                         <Badge className={getStatusColor(result.status)}>
                           {result.status.toUpperCase()}
                         </Badge>
+                        {result.cve && (
+                          <Badge variant="outline" className="border-warning text-warning">
+                            {result.cve}
+                          </Badge>
+                        )}
                         <Badge variant="outline" className="border-accent text-accent">
                           {payloadTypes.find(t => t.value === result.type)?.label || result.type}
                         </Badge>

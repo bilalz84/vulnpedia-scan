@@ -7,8 +7,43 @@ import { PortScanner } from './PortScanner';
 import { VulnerabilityScanner } from './VulnerabilityScanner';
 import { PayloadTester } from './PayloadTester';
 
+interface Vulnerability {
+  id: string;
+  cve: string;
+  title: string;
+  severity: 'critical' | 'high' | 'medium' | 'low';
+  description: string;
+  exploitAvailable: boolean;
+  service: string;
+  port: number;
+  location: {
+    url: string;
+    path: string;
+    parameter?: string;
+    method: string;
+  };
+  affectedVersions: string[];
+  discoveryDetails: {
+    timestamp: string;
+    confidence: number;
+    evidence: string;
+  };
+  exploitPayloads: Array<{
+    type: string;
+    payload: string;
+    description: string;
+  }>;
+}
+
 const SecurityDashboard = () => {
   const [activeScans, setActiveScans] = useState(0);
+  const [selectedVulnerability, setSelectedVulnerability] = useState<Vulnerability | null>(null);
+  const [activeTab, setActiveTab] = useState('port-scanner');
+
+  const handleTestPayload = (vulnerability: Vulnerability) => {
+    setSelectedVulnerability(vulnerability);
+    setActiveTab('payload-tester');
+  };
 
   const scanModules = [
     {
@@ -91,7 +126,7 @@ const SecurityDashboard = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="port-scanner" className="w-full">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="grid w-full grid-cols-3 bg-muted">
                 <TabsTrigger value="port-scanner" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                   Port Scanner
@@ -109,11 +144,22 @@ const SecurityDashboard = () => {
               </TabsContent>
               
               <TabsContent value="vuln-scanner" className="mt-6">
-                <VulnerabilityScanner onScanStart={() => setActiveScans(prev => prev + 1)} onScanEnd={() => setActiveScans(prev => Math.max(0, prev - 1))} />
+                <VulnerabilityScanner 
+                  onScanStart={() => setActiveScans(prev => prev + 1)} 
+                  onScanEnd={() => setActiveScans(prev => Math.max(0, prev - 1))}
+                  onTestPayload={handleTestPayload}
+                />
               </TabsContent>
               
               <TabsContent value="payload-tester" className="mt-6">
-                <PayloadTester />
+                <PayloadTester 
+                  vulnerabilityData={selectedVulnerability ? {
+                    cve: selectedVulnerability.cve,
+                    title: selectedVulnerability.title,
+                    location: selectedVulnerability.location,
+                    exploitPayloads: selectedVulnerability.exploitPayloads
+                  } : undefined}
+                />
               </TabsContent>
             </Tabs>
           </CardContent>
