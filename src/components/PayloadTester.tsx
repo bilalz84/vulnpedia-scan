@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,7 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Code, Send, History, Copy, Zap, AlertTriangle } from 'lucide-react';
+import { Code, Send, History, Copy, Zap, AlertTriangle, Database, RefreshCw, Search } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 interface PayloadTesterProps {
   vulnerabilityData?: {
@@ -46,9 +47,12 @@ export const PayloadTester: React.FC<PayloadTesterProps> = ({ vulnerabilityData 
   const [customPayload, setCustomPayload] = useState('');
   const [isTesting, setIsTesting] = useState(false);
   const [results, setResults] = useState<PayloadResult[]>([]);
+  const [payloadLibrary, setPayloadLibrary] = useState<any[]>([]);
+  const [isLoadingLibrary, setIsLoadingLibrary] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Set initial values when vulnerability data is provided
-  React.useEffect(() => {
+  useEffect(() => {
     if (vulnerabilityData) {
       setTarget(vulnerabilityData.location.url);
       if (vulnerabilityData.exploitPayloads.length > 0) {
@@ -57,7 +61,95 @@ export const PayloadTester: React.FC<PayloadTesterProps> = ({ vulnerabilityData 
         setCustomPayload(firstPayload.payload);
       }
     }
+    loadPayloadLibrary();
   }, [vulnerabilityData]);
+
+  const loadPayloadLibrary = async () => {
+    setIsLoadingLibrary(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('payload-library', {
+        body: { action: 'list' }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      setPayloadLibrary(data.payloads || []);
+    } catch (error) {
+      console.error('Error loading payload library:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load payload library",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingLibrary(false);
+    }
+  };
+
+  const syncPayloadLibrary = async () => {
+    setIsLoadingLibrary(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('payload-library', {
+        body: { action: 'sync' }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: "Sync Complete",
+        description: data.message,
+      });
+
+      // Reload the library
+      await loadPayloadLibrary();
+    } catch (error) {
+      console.error('Error syncing payload library:', error);
+      toast({
+        title: "Sync Failed",
+        description: "Failed to sync payload library",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingLibrary(false);
+    }
+  };
+
+  const searchPayloads = async () => {
+    if (!searchQuery.trim()) {
+      await loadPayloadLibrary();
+      return;
+    }
+
+    setIsLoadingLibrary(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('payload-library', {
+        body: { 
+          action: 'search',
+          q: searchQuery,
+          type: payloadType || undefined
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      setPayloadLibrary(data.payloads || []);
+    } catch (error) {
+      console.error('Error searching payloads:', error);
+      toast({
+        title: "Search Failed",
+        description: "Failed to search payload library",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingLibrary(false);
+    }
+  };
 
   const payloadTypes = [
     { value: 'sql-injection', label: 'SQL Injection', example: "' OR '1'='1" },
@@ -97,30 +189,50 @@ export const PayloadTester: React.FC<PayloadTesterProps> = ({ vulnerabilityData 
 
     setIsTesting(true);
 
-    // Simulate payload execution
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    try {
+      const { data, error } = await supabase.functions.invoke('payload-test', {
+        body: {
+          target,
+          payload: customPayload,
+          payloadType,
+          vulnerabilityId: vulnerabilityData ? vulnerabilityData.cve : null
+        }
+      });
 
-    const result: PayloadResult = {
-      id: Date.now().toString(),
-      timestamp: new Date().toLocaleTimeString(),
-      target,
-      payload: customPayload,
-      type: payloadType,
-      status: Math.random() > 0.7 ? 'success' : Math.random() > 0.5 ? 'blocked' : 'failed',
-      response: 'HTTP/1.1 200 OK\nContent-Type: text/html\n\n<html>Response content...</html>',
-      responseTime: Math.floor(Math.random() * 1000) + 100,
-      cve: vulnerabilityData?.cve,
-    };
+      if (error) {
+        throw error;
+      }
 
-    setResults(prev => [result, ...prev]);
+      const result: PayloadResult = {
+        id: data.testId || Date.now().toString(),
+        timestamp: new Date().toLocaleTimeString(),
+        target: data.target,
+        payload: data.payload,
+        type: data.payloadType,
+        status: data.result.status,
+        response: data.result.response,
+        responseTime: data.result.responseTime,
+        cve: vulnerabilityData?.cve,
+      };
 
-    toast({
-      title: "Payload Executed",
-      description: `Payload test completed with status: ${result.status}`,
-      variant: result.status === 'success' ? 'default' : 'destructive',
-    });
+      setResults(prev => [result, ...prev]);
 
-    setIsTesting(false);
+      toast({
+        title: "Payload Executed",
+        description: `Payload test completed with status: ${result.status}`,
+        variant: result.status === 'success' ? 'default' : 'destructive',
+      });
+
+    } catch (error) {
+      console.error('Payload execution error:', error);
+      toast({
+        title: "Execution Failed",
+        description: "Failed to execute payload. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsTesting(false);
+    }
   };
 
   const copyPayload = (payload: string) => {
@@ -269,6 +381,91 @@ export const PayloadTester: React.FC<PayloadTesterProps> = ({ vulnerabilityData 
               {isTesting ? 'Executing...' : 'Execute Payload'}
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Payload Library */}
+      <Card className="bg-card border-border">
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Database className="h-5 w-5 text-accent" />
+              Payload Library
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={syncPayloadLibrary}
+                size="sm"
+                variant="outline"
+                disabled={isLoadingLibrary}
+                className="border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+              >
+                <Sync className="h-3 w-3 mr-1" />
+                {isLoadingLibrary ? 'Syncing...' : 'Sync External'}
+              </Button>
+            </div>
+          </CardTitle>
+          <CardDescription>
+            Payloads from GitHub, Exploit-DB, OWASP, and other security resources
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Search */}
+          <div className="flex gap-2">
+            <Input
+              placeholder="Search payload library..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="bg-input border-border flex-1"
+            />
+            <Button
+              onClick={searchPayloads}
+              size="sm"
+              disabled={isLoadingLibrary}
+              className="bg-primary hover:bg-primary/90"
+            >
+              <Search className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {/* Payload Grid */}
+          <ScrollArea className="h-64">
+            <div className="grid grid-cols-1 gap-3">
+              {isLoadingLibrary ? (
+                <div className="text-center text-muted-foreground py-8">
+                  Loading payload library...
+                </div>
+              ) : payloadLibrary.length === 0 ? (
+                <div className="text-center text-muted-foreground py-8">
+                  No payloads found. Try syncing with external sources.
+                </div>
+              ) : (
+                payloadLibrary.map((payload) => (
+                  <Card key={payload.id} className="bg-secondary border-border cursor-pointer hover:shadow-glow transition-all"
+                        onClick={() => {
+                          setPayloadType(payload.type);
+                          setCustomPayload(payload.payload);
+                        }}>
+                    <CardContent className="p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <Badge variant="outline" className="border-accent text-accent text-xs">
+                          {payload.type}
+                        </Badge>
+                        <Badge variant="outline" className="border-warning text-warning text-xs">
+                          {payload.source}
+                        </Badge>
+                      </div>
+                      <h4 className="text-sm font-medium text-foreground mb-1">{payload.name}</h4>
+                      <code className="text-xs text-terminal-green font-mono break-all block bg-terminal/20 p-2 rounded mb-2">
+                        {payload.payload}
+                      </code>
+                      <p className="text-xs text-muted-foreground">{payload.description}</p>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
+          </ScrollArea>
         </CardContent>
       </Card>
 
