@@ -14,7 +14,273 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      payload_library: {
+        Row: {
+          category: string
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          payload: string
+          source: string
+          source_url: string | null
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          payload: string
+          source: string
+          source_url?: string | null
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          payload?: string
+          source?: string
+          source_url?: string | null
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      payload_tests: {
+        Row: {
+          executed_at: string
+          executed_by: string
+          id: string
+          payload: string
+          payload_type: string
+          response_data: string | null
+          response_time: number | null
+          status: string
+          target_url: string
+          vulnerability_id: string | null
+        }
+        Insert: {
+          executed_at?: string
+          executed_by?: string
+          id?: string
+          payload: string
+          payload_type: string
+          response_data?: string | null
+          response_time?: number | null
+          status: string
+          target_url: string
+          vulnerability_id?: string | null
+        }
+        Update: {
+          executed_at?: string
+          executed_by?: string
+          id?: string
+          payload?: string
+          payload_type?: string
+          response_data?: string | null
+          response_time?: number | null
+          status?: string
+          target_url?: string
+          vulnerability_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payload_tests_vulnerability_id_fkey"
+            columns: ["vulnerability_id"]
+            isOneToOne: false
+            referencedRelation: "vulnerabilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scans: {
+        Row: {
+          completed_at: string | null
+          created_by: string
+          critical_count: number | null
+          high_count: number | null
+          id: string
+          low_count: number | null
+          medium_count: number | null
+          progress: number
+          scan_data: Json | null
+          scan_type: string
+          started_at: string
+          status: string
+          target: string
+          total_vulnerabilities: number | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_by?: string
+          critical_count?: number | null
+          high_count?: number | null
+          id?: string
+          low_count?: number | null
+          medium_count?: number | null
+          progress?: number
+          scan_data?: Json | null
+          scan_type?: string
+          started_at?: string
+          status?: string
+          target: string
+          total_vulnerabilities?: number | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_by?: string
+          critical_count?: number | null
+          high_count?: number | null
+          id?: string
+          low_count?: number | null
+          medium_count?: number | null
+          progress?: number
+          scan_data?: Json | null
+          scan_type?: string
+          started_at?: string
+          status?: string
+          target?: string
+          total_vulnerabilities?: number | null
+        }
+        Relationships: []
+      }
+      vulnerabilities: {
+        Row: {
+          affected_versions: string[] | null
+          confidence_score: number
+          cve: string
+          description: string
+          discovered_at: string
+          evidence: string | null
+          exploit_available: boolean
+          exploit_payloads: Json | null
+          id: string
+          location_method: string
+          location_parameter: string | null
+          location_path: string
+          location_url: string
+          port: number
+          scan_id: string
+          service_name: string
+          severity: string
+          title: string
+        }
+        Insert: {
+          affected_versions?: string[] | null
+          confidence_score?: number
+          cve: string
+          description: string
+          discovered_at?: string
+          evidence?: string | null
+          exploit_available?: boolean
+          exploit_payloads?: Json | null
+          id?: string
+          location_method: string
+          location_parameter?: string | null
+          location_path: string
+          location_url: string
+          port: number
+          scan_id: string
+          service_name: string
+          severity: string
+          title: string
+        }
+        Update: {
+          affected_versions?: string[] | null
+          confidence_score?: number
+          cve?: string
+          description?: string
+          discovered_at?: string
+          evidence?: string | null
+          exploit_available?: boolean
+          exploit_payloads?: Json | null
+          id?: string
+          location_method?: string
+          location_parameter?: string | null
+          location_path?: string
+          location_url?: string
+          port?: number
+          scan_id?: string
+          service_name?: string
+          severity?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vulnerabilities_scan_id_fkey"
+            columns: ["scan_id"]
+            isOneToOne: false
+            referencedRelation: "scans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vulnerability_reports: {
+        Row: {
+          critical_count: number
+          generated_at: string
+          generated_by: string
+          high_count: number
+          id: string
+          low_count: number
+          medium_count: number
+          report_data: Json
+          report_format: string
+          report_title: string
+          scan_date: string
+          scan_id: string
+          target: string
+          total_vulnerabilities: number
+        }
+        Insert: {
+          critical_count?: number
+          generated_at?: string
+          generated_by: string
+          high_count?: number
+          id?: string
+          low_count?: number
+          medium_count?: number
+          report_data?: Json
+          report_format?: string
+          report_title: string
+          scan_date: string
+          scan_id: string
+          target: string
+          total_vulnerabilities?: number
+        }
+        Update: {
+          critical_count?: number
+          generated_at?: string
+          generated_by?: string
+          high_count?: number
+          id?: string
+          low_count?: number
+          medium_count?: number
+          report_data?: Json
+          report_format?: string
+          report_title?: string
+          scan_date?: string
+          scan_id?: string
+          target?: string
+          total_vulnerabilities?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vulnerability_reports_scan_id_fkey"
+            columns: ["scan_id"]
+            isOneToOne: false
+            referencedRelation: "scans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
